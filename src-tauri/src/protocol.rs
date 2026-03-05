@@ -1,5 +1,6 @@
-/// Encode a keyboard HID packet.
-/// Format: [modifiers, 0x00, keycode, 0, 0, 0, 0, 0]
+/// Encode a keyboard HID packet (UUID: F801).
+/// Format: [modifiers, 0x00, key1, key2, key3, key4, key5, key6]
+/// Up to 6 simultaneous keycodes in Byte2–Byte7; pass 0 for unused slots.
 pub fn encode_keyboard(modifiers: u8, keycode: u8) -> [u8; 8] {
     [modifiers, 0x00, keycode, 0, 0, 0, 0, 0]
 }
@@ -10,9 +11,10 @@ pub fn encode_key_release() -> [u8; 8] {
     [0u8; 8]
 }
 
-/// Encode a mouse HID packet.
-/// Format: [buttons, x_lo, x_hi, y_lo, y_hi, wheel, 0, 0]
-pub fn encode_mouse(buttons: u8, dx: i16, dy: i16, wheel: i8) -> [u8; 8] {
+/// Encode a mouse HID packet (UUID: F803) — 6 bytes.
+/// dx/dy are 11-bit signed values clamped to -2047..+2047.
+/// wheel is -127..+127 (scroll wheel).
+pub fn encode_mouse(buttons: u8, dx: i16, dy: i16, wheel: i8) -> [u8; 6] {
     let x_bytes = dx.to_le_bytes();
     let y_bytes = dy.to_le_bytes();
     [
@@ -22,9 +24,58 @@ pub fn encode_mouse(buttons: u8, dx: i16, dy: i16, wheel: i8) -> [u8; 8] {
         y_bytes[0],
         y_bytes[1],
         wheel as u8,
-        0,
-        0,
     ]
+}
+
+/// Encode a gamepad HID packet (UUID: F802) — 10 bytes.
+/// stick1_x/y, stick2_x/y: -127..+127
+/// rx/ry (sliders): -127..+127
+/// buttons_lo: buttons 1–8 (bit0=btn1), buttons_hi: buttons 9–16 (bit0=btn9)
+/// pov_and_extra: bit7=Back, bit6=Home, bit5=Select, bit4=Start, bit3-0=POV (0=none, 1–8=directions)
+#[allow(dead_code)]
+pub fn encode_gamepad(
+    stick1_x: i8,
+    stick1_y: i8,
+    stick2_x: i8,
+    stick2_y: i8,
+    rx: i8,
+    ry: i8,
+    buttons_lo: u8,
+    buttons_hi: u8,
+    pov_and_extra: u8,
+) -> [u8; 10] {
+    [
+        0x22,
+        stick1_x as u8,
+        stick1_y as u8,
+        stick2_x as u8,
+        stick2_y as u8,
+        rx as u8,
+        ry as u8,
+        buttons_lo,
+        buttons_hi,
+        pov_and_extra,
+    ]
+}
+
+/// Encode a pen HID packet (UUID: F804, report type 1) — 6 bytes.
+/// x: 0–3840, y: 0–2160 (absolute screen coordinates)
+/// flags: bit0=InRange, bit1=TipSwitch, bit2=Barrel
+#[allow(dead_code)]
+pub fn encode_pen(flags: u8, x: u16, y: u16) -> [u8; 6] {
+    let x_bytes = x.to_le_bytes();
+    let y_bytes = y.to_le_bytes();
+    [0x41, flags, x_bytes[0], x_bytes[1], y_bytes[0], y_bytes[1]]
+}
+
+/// Encode a consumer/media-key HID packet (UUID: F804, report type 2) — 4 bytes.
+/// byte1: bit7=Vol+, bit6=Vol-, bit5=Ch+, bit4=Ch-, bit3-0=number(1-10, 0=none)
+/// byte2: bit7=CameraShutter, bit6=CameraAutoFocus, bit5-0=function(1-47, 0=none)
+/// byte3: bit7=DpadLeft, bit6=DpadRight, bit5=DpadDown, bit4=DpadUp,
+///         bit3=SpeakerMute, bit2=SystemWakeup, bit1=SystemSleep, bit0=PowerDown
+#[allow(dead_code)]
+pub fn encode_consumer(byte1: u8, byte2: u8, byte3: u8) -> [u8; 4] {
+    [0x42, byte1, byte2, byte3]
 }
 
 use rdev::Key;

@@ -7,10 +7,20 @@ use btleplug::platform::{Adapter, Manager, Peripheral};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+/// Custom service UUID (F800)
 #[allow(dead_code)]
 const SERVICE_UUID: Uuid = Uuid::from_u128(0x0000F800_0000_1000_8000_00805f9b34fb);
+/// F801 — Keyboard (write + notify)
 const KEYBOARD_CHAR_UUID: Uuid = Uuid::from_u128(0x0000F801_0000_1000_8000_00805f9b34fb);
+/// F802 — Gamepad (write only)
+const GAMEPAD_CHAR_UUID: Uuid = Uuid::from_u128(0x0000F802_0000_1000_8000_00805f9b34fb);
+/// F803 — Mouse (write only)
 const MOUSE_CHAR_UUID: Uuid = Uuid::from_u128(0x0000F803_0000_1000_8000_00805f9b34fb);
+/// F804 — Pen & Consumer (write only)
+const CONSUMER_CHAR_UUID: Uuid = Uuid::from_u128(0x0000F804_0000_1000_8000_00805f9b34fb);
+/// F80F — Private Control (write + notify — reserved, do not use)
+#[allow(dead_code)]
+const PRIVATE_CHAR_UUID: Uuid = Uuid::from_u128(0x0000F80F_0000_1000_8000_00805f9b34fb);
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BleDeviceInfo {
@@ -22,7 +32,9 @@ pub struct BleDeviceInfo {
 struct ConnectedDevice {
     peripheral: Peripheral,
     keyboard_char: Characteristic,
+    gamepad_char: Characteristic,
     mouse_char: Characteristic,
+    consumer_char: Characteristic,
 }
 
 pub struct BleState {
@@ -140,17 +152,31 @@ impl BleState {
             .cloned()
             .ok_or_else(|| "Keyboard characteristic not found".to_string())?;
 
+        let gamepad_char = chars
+            .iter()
+            .find(|c| c.uuid == GAMEPAD_CHAR_UUID)
+            .cloned()
+            .ok_or_else(|| "Gamepad characteristic not found".to_string())?;
+
         let mouse_char = chars
             .iter()
             .find(|c| c.uuid == MOUSE_CHAR_UUID)
             .cloned()
             .ok_or_else(|| "Mouse characteristic not found".to_string())?;
 
+        let consumer_char = chars
+            .iter()
+            .find(|c| c.uuid == CONSUMER_CHAR_UUID)
+            .cloned()
+            .ok_or_else(|| "Consumer characteristic not found".to_string())?;
+
         let mut connected = self.connected.lock().await;
         *connected = Some(ConnectedDevice {
             peripheral,
             keyboard_char,
+            gamepad_char,
             mouse_char,
+            consumer_char,
         });
 
         Ok(())
@@ -190,7 +216,7 @@ impl BleState {
             .map_err(|e| format!("Failed to write keyboard: {}", e))
     }
 
-    pub async fn write_mouse(&self, payload: [u8; 8]) -> Result<(), String> {
+    pub async fn write_mouse(&self, payload: [u8; 6]) -> Result<(), String> {
         let connected = self.connected.lock().await;
         let device = connected
             .as_ref()
@@ -201,5 +227,33 @@ impl BleState {
             .write(&device.mouse_char, &payload, WriteType::WithoutResponse)
             .await
             .map_err(|e| format!("Failed to write mouse: {}", e))
+    }
+
+    /// Send a 10-byte gamepad report to characteristic F802.
+    pub async fn write_gamepad(&self, payload: [u8; 10]) -> Result<(), String> {
+        let connected = self.connected.lock().await;
+        let device = connected
+            .as_ref()
+            .ok_or_else(|| "Not connected".to_string())?;
+
+        device
+            .peripheral
+            .write(&device.gamepad_char, &payload, WriteType::WithoutResponse)
+            .await
+            .map_err(|e| format!("Failed to write gamepad: {}", e))
+    }
+
+    /// Send a pen (6-byte) or consumer (4-byte) report to characteristic F804.
+    pub async fn write_consumer(&self, payload: &[u8]) -> Result<(), String> {
+        let connected = self.connected.lock().await;
+        let device = connected
+            .as_ref()
+            .ok_or_else(|| "Not connected".to_string())?;
+
+        device
+            .peripheral
+            .write(&device.consumer_char, payload, WriteType::WithoutResponse)
+            .await
+            .map_err(|e| format!("Failed to write consumer: {}", e))
     }
 }
