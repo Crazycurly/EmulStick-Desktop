@@ -124,8 +124,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-            let ble_state = rt.block_on(async {
+            let ble_state = tauri::async_runtime::block_on(async {
                 BleState::new().await.expect("Failed to initialize BLE")
             });
             let ble = Arc::new(Mutex::new(ble_state));

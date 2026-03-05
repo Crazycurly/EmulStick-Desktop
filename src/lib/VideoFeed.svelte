@@ -10,7 +10,7 @@
   let videoDevices = $state<VideoDevice[]>([]);
   let selectedDeviceId = $state("");
   let videoEl: HTMLVideoElement | undefined = $state();
-  let stream: MediaStream | null = null;
+  let stream: MediaStream | null = $state(null);
   let videoEnabled = $state(true);
   let error = $state("");
 

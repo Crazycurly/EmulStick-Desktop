@@ -7,6 +7,7 @@ use btleplug::platform::{Adapter, Manager, Peripheral};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+#[allow(dead_code)]
 const SERVICE_UUID: Uuid = Uuid::from_u128(0x0000F800_0000_1000_8000_00805f9b34fb);
 const KEYBOARD_CHAR_UUID: Uuid = Uuid::from_u128(0x0000F801_0000_1000_8000_00805f9b34fb);
 const MOUSE_CHAR_UUID: Uuid = Uuid::from_u128(0x0000F803_0000_1000_8000_00805f9b34fb);
@@ -92,21 +93,32 @@ impl BleState {
 
     pub async fn connect(&self, address: &str) -> Result<(), String> {
         let adapter = self.get_adapter().await?;
+
+        // Re-scan briefly so the adapter rediscovers peripherals
+        adapter
+            .start_scan(ScanFilter::default())
+            .await
+            .map_err(|e| format!("Failed to start scan: {}", e))?;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        adapter
+            .stop_scan()
+            .await
+            .map_err(|e| format!("Failed to stop scan: {}", e))?;
+
         let peripherals = adapter
             .peripherals()
             .await
             .map_err(|e| format!("Failed to get peripherals: {}", e))?;
 
-        let target = peripherals
-            .into_iter()
-            .find(|p| {
-                p.properties()
-                    .now_or_never()
-                    .and_then(|r| r.ok())
-                    .flatten()
-                    .map(|props| props.address.to_string() == address)
-                    .unwrap_or(false)
-            });
+        let mut target = None;
+        for p in peripherals {
+            if let Ok(Some(props)) = p.properties().await {
+                if props.address.to_string() == address {
+                    target = Some(p);
+                    break;
+                }
+            }
+        }
 
         let peripheral = target.ok_or_else(|| format!("Device {} not found", address))?;
 
@@ -191,5 +203,3 @@ impl BleState {
             .map_err(|e| format!("Failed to write mouse: {}", e))
     }
 }
-
-use futures::FutureExt;

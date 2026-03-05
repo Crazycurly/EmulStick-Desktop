@@ -5,6 +5,7 @@ pub fn encode_keyboard(modifiers: u8, keycode: u8) -> [u8; 8] {
 }
 
 /// Encode a key release (all zeros).
+#[allow(dead_code)]
 pub fn encode_key_release() -> [u8; 8] {
     [0u8; 8]
 }
@@ -129,6 +130,7 @@ pub fn modifier_bits_from_rdev(key: Key) -> Option<u8> {
 }
 
 /// Map rdev mouse button to HID button bitmask.
+#[allow(dead_code)]
 pub fn mouse_button_bit(button: rdev::Button) -> u8 {
     match button {
         rdev::Button::Left => 0x01,
