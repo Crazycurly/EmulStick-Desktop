@@ -6,11 +6,27 @@
 
   let locked = $state(false);
   let active = $state(false);
+  let initialized = $state(false);
 
   lockMode.subscribe((v) => (locked = v));
   controlActive.subscribe((v) => (active = v));
 
-  onMount(() => {
+  onMount(async () => {
+    if (!initialized) {
+      initialized = true;
+      // Load initial states from backend
+      try {
+        const [lockModeVal, controlActiveVal] = await Promise.all([
+          invoke<boolean>("get_lock_mode"),
+          invoke<boolean>("is_control_active"),
+        ]);
+        lockMode.set(lockModeVal);
+        controlActive.set(controlActiveVal);
+      } catch (e) {
+        console.error("Failed to load initial state:", e);
+      }
+    }
+
     const unlisten = listen<boolean>("lock-mode-changed", (event) => {
       lockMode.set(event.payload);
     });
@@ -62,7 +78,7 @@
   </button>
 
   {#if active}
-    <span class="hint">Press Ctrl+Alt to toggle lock mode</span>
+    <span class="hint">Press R-Ctrl + R-Alt to toggle lock</span>
   {/if}
 </div>
 

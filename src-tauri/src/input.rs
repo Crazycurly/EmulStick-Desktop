@@ -14,19 +14,19 @@ struct HookContext {
     app_state: SharedAppState,
     modifier_state: std::sync::Mutex<u8>,
     button_state: std::sync::Mutex<u8>,
-    ctrl_held: AtomicBool,
-    alt_held: AtomicBool,
+    rctrl_held: AtomicBool,
+    ralt_held: AtomicBool,
     mouse_x: std::sync::Mutex<f64>,
     mouse_y: std::sync::Mutex<f64>,
     mouse_initialized: AtomicBool,
 }
 
-fn is_ctrl(key: Key) -> bool {
-    matches!(key, Key::ControlLeft | Key::ControlRight)
+fn is_rctrl(key: Key) -> bool {
+    matches!(key, Key::ControlRight)
 }
 
-fn is_alt(key: Key) -> bool {
-    matches!(key, Key::Alt | Key::AltGr)
+fn is_ralt(key: Key) -> bool {
+    matches!(key, Key::AltGr)
 }
 
 /// Map rdev Button to HID mouse button bit.
@@ -53,8 +53,8 @@ pub fn start_hook(
         app_state,
         modifier_state: std::sync::Mutex::new(0u8),
         button_state: std::sync::Mutex::new(0u8),
-        ctrl_held: AtomicBool::new(false),
-        alt_held: AtomicBool::new(false),
+        rctrl_held: AtomicBool::new(false),
+        ralt_held: AtomicBool::new(false),
         mouse_x: std::sync::Mutex::new(0.0),
         mouse_y: std::sync::Mutex::new(0.0),
         mouse_initialized: AtomicBool::new(false),
@@ -200,22 +200,39 @@ pub fn start_hook(
                     }
                     // ------ Keyboard events ------
                     EventType::KeyPress(key) => {
-                        if is_ctrl(key) { ctx.ctrl_held.store(true, Ordering::SeqCst); }
-                        if is_alt(key) { ctx.alt_held.store(true, Ordering::SeqCst); }
+                        if is_rctrl(key) { ctx.rctrl_held.store(true, Ordering::SeqCst); }
+                        if is_ralt(key) { ctx.ralt_held.store(true, Ordering::SeqCst); }
 
-                        if ctx.ctrl_held.load(Ordering::SeqCst) && ctx.alt_held.load(Ordering::SeqCst) {
+                        if ctx.rctrl_held.load(Ordering::SeqCst) && ctx.ralt_held.load(Ordering::SeqCst) {
                             let mut state = ctx.app_state.lock().unwrap();
+                            let was_locked = state.lock_mode;
                             state.lock_mode = !state.lock_mode;
                             let new_mode = state.lock_mode;
                             drop(state);
                             let _ = app_handle.emit("lock-mode-changed", new_mode);
                             log::info!("Lock mode toggled to: {}", new_mode);
+
+                            // If unlocking, release any held modifier keys on the host
+                            if was_locked && !new_mode {
+                                // Clear local modifier state and send release to host
+                                {
+                                    let mut mods = ctx.modifier_state.lock().unwrap();
+                                    *mods = 0;
+                                }
+                                let payload = protocol::encode_keyboard(0, 0);
+                                let ble = ctx.ble.clone();
+                                rt.spawn(async move {
+                                    let ble = ble.lock().await;
+                                    let _ = ble.write_keyboard(payload).await;
+                                });
+                            }
+
                             return Some(event);
                         }
                     }
                     EventType::KeyRelease(key) => {
-                        if is_ctrl(key) { ctx.ctrl_held.store(false, Ordering::SeqCst); }
-                        if is_alt(key) { ctx.alt_held.store(false, Ordering::SeqCst); }
+                        if is_rctrl(key) { ctx.rctrl_held.store(false, Ordering::SeqCst); }
+                        if is_ralt(key) { ctx.ralt_held.store(false, Ordering::SeqCst); }
                     }
                 }
 

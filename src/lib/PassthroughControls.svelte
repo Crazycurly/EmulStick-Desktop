@@ -1,15 +1,34 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { passthroughConfig } from "./stores";
+  import { onMount } from "svelte";
 
   let keyboard = $state(true);
-  let mouse = $state(true);
-  let video = $state(true);
+  let mouse = $state(false);
+  let video = $state(false);
+  let initialized = $state(false);
 
   passthroughConfig.subscribe((c) => {
     keyboard = c.keyboard;
     mouse = c.mouse;
     video = c.video;
+  });
+
+  onMount(async () => {
+    if (!initialized) {
+      initialized = true;
+      try {
+        const config = await invoke<{ enable_keyboard: boolean; enable_mouse: boolean; enable_video: boolean }>("get_passthrough");
+        const newConfig = {
+          keyboard: config.enable_keyboard,
+          mouse: config.enable_mouse,
+          video: config.enable_video,
+        };
+        passthroughConfig.set(newConfig);
+      } catch (e) {
+        console.error("Failed to load passthrough config:", e);
+      }
+    }
   });
 
   async function update(field: "keyboard" | "mouse" | "video", value: boolean) {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { connectionState } from "./stores";
+  import { onMount } from "svelte";
 
   interface BleDevice {
     name: string;
@@ -11,6 +12,7 @@
   let devices = $state<BleDevice[]>([]);
   let scanning = $state(false);
   let error = $state("");
+  let mounted = $state(false);
 
   async function scan() {
     scanning = true;
@@ -23,6 +25,16 @@
       scanning = false;
     }
   }
+
+  onMount(() => {
+    if (!mounted) {
+      mounted = true;
+      // Auto-scan once on mount after a short delay
+      setTimeout(() => {
+        scan();
+      }, 500);
+    }
+  });
 
   async function connectDevice(device: BleDevice) {
     error = "";

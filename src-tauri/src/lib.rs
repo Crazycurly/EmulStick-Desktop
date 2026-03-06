@@ -101,6 +101,13 @@ fn start_control(
     app_state: tauri::State<'_, SharedAppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    // Auto-enable lock mode when starting control
+    {
+        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        state.lock_mode = true;
+        let _ = app_handle.emit("lock-mode-changed", true);
+    }
+
     let ble_arc = Arc::clone(&*ble);
     let state_arc = Arc::clone(&*app_state);
     input::start_hook(ble_arc, state_arc, app_handle)

@@ -1,15 +1,42 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { connectionState } from "./stores";
+  import { onMount, onDestroy } from "svelte";
 
   let connected = $state(false);
   let deviceName = $state("");
   let address = $state("");
+  let checkInterval: ReturnType<typeof setInterval> | null = null;
 
   connectionState.subscribe((s) => {
     connected = s.connected;
     deviceName = s.deviceName;
     address = s.address;
+  });
+
+  async function checkConnection() {
+    try {
+      const isConnected = await invoke<boolean>("get_connection_status");
+      if (isConnected !== connected) {
+        if (!isConnected) {
+          // Device disconnected externally
+          connectionState.set({ connected: false, deviceName: "", address: "" });
+        }
+      }
+    } catch (e) {
+      console.error("Connection check failed:", e);
+    }
+  }
+
+  onMount(() => {
+    // Check connection status every 3 seconds
+    checkInterval = setInterval(checkConnection, 3000);
+  });
+
+  onDestroy(() => {
+    if (checkInterval) {
+      clearInterval(checkInterval);
+    }
   });
 
   async function disconnect() {

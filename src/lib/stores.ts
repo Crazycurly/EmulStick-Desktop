@@ -16,8 +16,8 @@ export const passthroughConfig = writable<{
   video: boolean;
 }>({
   keyboard: true,
-  mouse: true,
-  video: true,
+  mouse: false,
+  video: false,
 });
 
 export const lockMode = writable<boolean>(false);

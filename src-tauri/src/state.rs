@@ -12,8 +12,8 @@ impl Default for PassthroughConfig {
     fn default() -> Self {
         Self {
             enable_keyboard: true,
-            enable_mouse: true,
-            enable_video: true,
+            enable_mouse: false,
+            enable_video: false,
         }
     }
 }

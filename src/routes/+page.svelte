@@ -4,6 +4,13 @@
   import PassthroughControls from "$lib/PassthroughControls.svelte";
   import LockModeIndicator from "$lib/LockModeIndicator.svelte";
   import VideoFeed from "$lib/VideoFeed.svelte";
+  import { passthroughConfig } from "$lib/stores";
+
+  let showVideo = $state(true);
+
+  passthroughConfig.subscribe((config) => {
+    showVideo = config.video;
+  });
 </script>
 
 <main class="app">
@@ -21,7 +28,13 @@
     </aside>
 
     <section class="main-area">
-      <VideoFeed />
+      {#if showVideo}
+        <VideoFeed />
+      {:else}
+        <div class="no-video">
+          <p>Video passthrough is disabled</p>
+        </div>
+      {/if}
     </section>
   </div>
 </main>
@@ -88,5 +101,14 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+  }
+
+  .no-video {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 0.9rem;
   }
 </style>
